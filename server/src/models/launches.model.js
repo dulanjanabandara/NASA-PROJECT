@@ -44,6 +44,11 @@ async function populateLaunches() {
     },
   });
 
+  if (response.status !== 200) {
+    console.log("Problem downloading launch data!");
+    throw new Error("Launch data download failed!");
+  }
+
   const launchDocs = response.data.docs;
   for (const launchDoc of launchDocs) {
     const payloads = launchDoc["payloads"];
@@ -56,15 +61,16 @@ async function populateLaunches() {
       mission: launchDoc["name"],
       rocket: launchDoc["rocket"]["name"], // rocket.name
       launchDate: launchDoc["date_local"],
-      target: launchDoc[""], // not applicable
-      customers, // payload.customers for each payload
+      // target: launchDoc[""], // not applicable
       upcoming: launchDoc["upcoming"],
       success: launchDoc["success"],
+      customers, // payload.customers for each payload
     };
 
     console.log(`${launch.flightNumber} ${launch.mission}`);
 
     // TODO: populate launches collection...
+    await saveLaunch(launch);
   }
 }
 
@@ -106,15 +112,9 @@ async function getAllLaunches() {
 }
 
 async function saveLaunch(launch) {
-  const planet = await planets.findOne({ keplerName: launch.target });
-
-  if (!planet) {
-    throw new Error("No matching planet found");
-  }
-
   await launchesDatabase.findOneAndUpdate(
     {
-      flightNumber: launch.fightNumber,
+      flightNumber: launch.flightNumber,
     },
     launch,
     { upsert: true }
@@ -122,6 +122,12 @@ async function saveLaunch(launch) {
 }
 
 async function scheduleNewLaunch(launch) {
+  const planet = await planets.findOne({ keplerName: launch.target });
+
+  if (!planet) {
+    throw new Error("No matching planet found");
+  }
+
   const newFlightNumber = (await getLatestFlightNumber()) + 1;
 
   const newLaunch = Object.assign(launch, {
